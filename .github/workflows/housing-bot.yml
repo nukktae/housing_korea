@@ -51,6 +51,10 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cp data/seen.json /tmp/housing-seen.json
+          git fetch origin main
+          git reset --hard origin/main
+          cp /tmp/housing-seen.json data/seen.json
           git add data/seen.json
           git diff --cached --quiet || git commit -m "Update housing bot seen state"
           git push
