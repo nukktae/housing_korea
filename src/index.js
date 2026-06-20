@@ -176,13 +176,13 @@ function normalizeDabang(item, category, typeLabel) {
   const text = [item.roomTitle, item.roomDesc, item.roomTypeName, item.priceTitle].filter(Boolean).join(" ");
   const [deposit, rent] = parseDabangPrice(item.priceTitle);
   const pyeong = parseDabangPyeong(item.roomDesc);
-  const routeCategory = category === "one-two" ? "onetwo" : category;
   return {
     source: "dabang",
     id: `dabang:${item.id}`,
     rawId: item.id,
+    listingNo: item.seq || null,
     regionCode: Number(item.gid || 0),
-    type: typeLabel,
+    type: item.roomTypeName || typeLabel,
     title: item.roomTitle || "(no title)",
     text,
     deposit,
@@ -194,9 +194,24 @@ function normalizeDabang(item, category, typeLabel) {
     lat: item.randomLocation?.lat ?? null,
     lng: item.randomLocation?.lng ?? null,
     image: item.imgUrlList?.[0],
-    url: `https://www.dabangapp.com/map/${routeCategory}/${item.id}`,
+    url: buildDabangRoomUrl(category, item),
     createdAt: null
   };
+}
+
+function buildDabangRoomUrl(category, item) {
+  const routeCategory = category === "one-two" ? "onetwo" : category;
+  const url = new URL(`https://www.dabangapp.com/map/${routeCategory}`);
+  const lat = item.randomLocation?.lat;
+  const lng = item.randomLocation?.lng;
+  if (lat && lng) {
+    url.searchParams.set("m_lat", String(lat));
+    url.searchParams.set("m_lng", String(lng));
+  }
+  url.searchParams.set("m_zoom", "16");
+  url.searchParams.set("detail_type", "room");
+  url.searchParams.set("detail_id", item.id);
+  return url.toString();
 }
 
 function parseDabangPrice(priceTitle = "") {
@@ -382,6 +397,7 @@ function normalizeZigbang(item) {
     source: "zigbang",
     id: `zigbang:${item.item_id}`,
     rawId: item.item_id,
+    listingNo: item.item_id,
     type: service,
     title: item.title || "(no title)",
     text,
@@ -394,7 +410,7 @@ function normalizeZigbang(item) {
     lat: item.location?.lat ?? item.random_location?.lat ?? null,
     lng: item.location?.lng ?? item.random_location?.lng ?? null,
     image: item.images_thumbnail,
-    url: `https://www.zigbang.com/home/${routeType}/items/${item.item_id}`,
+    url: `https://www.zigbang.com/home/${routeType}/items/${item.item_id}?share=true`,
     createdAt: item.reg_date || null
   };
 }
@@ -491,6 +507,7 @@ function formatListing(listing) {
     `가격: 보증금 ${listing.deposit} / 월세 ${listing.rent}만원`,
     `면적: ${listing.pyeong ?? "?"}평`,
     `관리비: ${listing.maintenance === null ? "별도/확인필요" : `${listing.maintenance}만원`}`,
+    listing.listingNo ? `매물번호: ${escapeHtml(listing.listingNo)}` : null,
     listing.address ? `지역: ${escapeHtml(listing.address)}` : null,
     listing.floorText ? `층/설명: ${escapeHtml(listing.floorText)}` : null,
     listing.createdAt ? `등록: ${escapeHtml(listing.createdAt)}` : null,
