@@ -1,0 +1,56 @@
+name: Housing Telegram Bot
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/20 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: housing-telegram-bot
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Run housing check
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          CHECK_INTERVAL_MINUTES: "20"
+          HEADLESS: "true"
+          SEND_EXISTING_ON_FIRST_RUN: "false"
+          DABANG_MAX_PAGES: "8"
+          ZIGBANG_ENABLED: "true"
+          DABANG_ENABLED: "true"
+          ZIGBANG_DETAIL_CONCURRENCY: "6"
+          FETCH_TIMEOUT_MS: "20000"
+        run: node src/index.js --once
+
+      - name: Commit seen state
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/seen.json
+          git diff --cached --quiet || git commit -m "Update housing bot seen state"
+          git push

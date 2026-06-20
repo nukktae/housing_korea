@@ -1,0 +1,44 @@
+{
+  "location": {
+    "name": "Seoul",
+    "bbox": {
+      "sw": { "lat": 37.425, "lng": 126.764 },
+      "ne": { "lat": 37.701, "lng": 127.183 }
+    },
+    "polygon": [
+      { "lat": 37.701, "lng": 126.764 },
+      { "lat": 37.69, "lng": 126.86 },
+      { "lat": 37.695, "lng": 126.98 },
+      { "lat": 37.69, "lng": 127.1 },
+      { "lat": 37.655, "lng": 127.18 },
+      { "lat": 37.58, "lng": 127.18 },
+      { "lat": 37.515, "lng": 127.155 },
+      { "lat": 37.455, "lng": 127.095 },
+      { "lat": 37.425, "lng": 127.02 },
+      { "lat": 37.435, "lng": 126.91 },
+      { "lat": 37.47, "lng": 126.82 },
+      { "lat": 37.56, "lng": 126.764 }
+    ],
+    "zigbangGrid": {
+      "zoom": 15,
+      "stepLat": 0.05,
+      "stepLng": 0.07,
+      "waitMsPerCenter": 2200
+    }
+  },
+  "filters": {
+    "depositMaxManwon": 500,
+    "monthlyRentMaxManwon": 68,
+    "minimumPyeong": 6,
+    "maintenanceFeeSeparate": true,
+    "salesTypes": ["월세"],
+    "roomTypes": ["원룸", "오피스텔"],
+    "excludedFloors": ["반지하", "옥탑"],
+    "requireMoveInRegistrationText": true,
+    "registrationPositiveWords": ["전입"],
+    "registrationNegativeWords": ["전입불가", "전입 불가", "전입불가능", "전입 불가능", "전입은불가", "전입은 불가", "전입x", "전입X", "전입 안", "전입안", "전입신고안", "전입신고 안", "전입신고불가", "전입신고 불가"]
+  },
+  "telegram": {
+    "disableWebPreview": false
+  }
+}

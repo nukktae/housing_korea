@@ -1,0 +1,5 @@
+.env
+node_modules/
+data/bot.log
+data/bot.pid
+.DS_Store
