@@ -2,11 +2,14 @@ import { chromium } from "playwright";
 import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { openDb, upsertListings } from "./db.js";
 
 const rootDir = path.resolve(new URL(".", import.meta.url).pathname, "..");
 const dataDir = path.join(rootDir, "data");
 const seenPath = path.join(dataDir, "seen.json");
+const dbPath = path.join(dataDir, "listings.db");
 const configPath = path.join(rootDir, "config.json");
+const db = openDb(dbPath);
 
 const args = new Set(process.argv.slice(2));
 const once = args.has("--once");
@@ -194,6 +197,7 @@ function normalizeDabang(item, category, typeLabel) {
     lat: item.randomLocation?.lat ?? null,
     lng: item.randomLocation?.lng ?? null,
     image: item.imgUrlList?.[0],
+    images: Array.isArray(item.imgUrlList) ? item.imgUrlList : [],
     url: buildDabangRoomUrl(category, item),
     createdAt: null
   };
@@ -406,10 +410,12 @@ function normalizeZigbang(item) {
     pyeong,
     maintenance: item.manage_cost ? Math.round(Number(item.manage_cost) / 10000) : null,
     floorText: item.floor_string || String(item.floor || ""),
-    address: item.address || item.address1 || "",
+    address: item.address1 || item.addressOrigin?.fullText || item.address || "",
     lat: item.location?.lat ?? item.random_location?.lat ?? null,
     lng: item.location?.lng ?? item.random_location?.lng ?? null,
     image: item.images_thumbnail,
+    images: Array.from({ length: 8 }, (_, i) =>
+      `https://ic.zigbang.com/ic/items/${item.item_id}/${i + 1}.jpg?w=800`),
     url: `https://www.zigbang.com/home/${routeType}/items/${item.item_id}?share=true`,
     createdAt: item.reg_date || null
   };
@@ -425,6 +431,7 @@ function isMatching(listing) {
   if (listing.rent > f.monthlyRentMaxManwon) return false;
   if (listing.pyeong !== null && listing.pyeong < f.minimumPyeong) return false;
   if (f.excludedFloors.some((word) => listing.floorText.includes(word) || listing.text.includes(word))) return false;
+  if (Array.isArray(f.excludedAreas) && f.excludedAreas.some((area) => listing.address.includes(area))) return false;
   if (f.requireMoveInRegistrationText && !hasRegistrationSignal(listing.text)) return false;
   return true;
 }
@@ -551,6 +558,7 @@ async function checkOnce() {
   }
 
   const matches = [...unique.values()].filter(isMatching);
+  if (matches.length) upsertListings(db, matches);
   const newMatches = matches.filter((listing) => !seenIds.has(listing.id));
   const shouldAlert = seen.firstRunCompleted || env.sendExistingOnFirstRun || initSeen || dryRun;
   const toSend = shouldAlert ? newMatches : [];

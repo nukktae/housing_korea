@@ -2,4 +2,7 @@
 node_modules/
 data/bot.log
 data/bot.pid
+data/listings.db
+data/listings.db-shm
+data/listings.db-wal
 .DS_Store
