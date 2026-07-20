@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Keep · Seoul Housing</title>
+  <style>
+    :root { --border: #e5e7eb; --muted: #6b7280; --accent: #2563eb; --gold: #ca8a04; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; color: #111; background: #f9fafb; }
+
+    header {
+      background: #fff; border-bottom: 1px solid var(--border);
+      padding: 18px 24px; display: flex; align-items: center; gap: 14px;
+      position: sticky; top: 0; z-index: 10;
+    }
+    header h1 { font-size: 18px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+    header .star { color: var(--gold); }
+    header .count { color: var(--muted); font-size: 13px; }
+    header a.back {
+      margin-left: auto; text-decoration: none; color: #374151; font-size: 13px;
+      padding: 7px 14px; border: 1px solid var(--border); border-radius: 6px;
+      background: #fff; transition: background 0.1s;
+    }
+    header a.back:hover { background: #f3f4f6; }
+    header a.cross-link {
+      text-decoration: none; color: #374151; font-size: 13px;
+      padding: 7px 14px; border: 1px solid var(--border); border-radius: 6px;
+      background: #fff; transition: background 0.1s;
+    }
+    header a.cross-link:hover { background: #fef3c7; border-color: #fbbf24; }
+
+    main { max-width: 1100px; margin: 0 auto; padding: 24px; }
+    .grid {
+      display: grid; gap: 18px;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    }
+    .card {
+      background: #fff; border: 1px solid var(--border); border-radius: 10px;
+      overflow: hidden; transition: box-shadow 0.15s, transform 0.15s;
+      display: flex; flex-direction: column;
+    }
+    .card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.08); transform: translateY(-2px); }
+
+    .card .img {
+      position: relative; width: 100%; aspect-ratio: 4 / 3; background: #f3f4f6; overflow: hidden;
+    }
+    .card .img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .card .img .empty { display: flex; align-items: center; justify-content: center; height: 100%; color: #9ca3af; font-size: 12px; }
+    .card .img .nav { position: absolute; top: 50%; transform: translateY(-50%); width: 28px; height: 28px; background: rgba(0,0,0,.55); color: #fff; border: 0; border-radius: 50%; cursor: pointer; font-size: 16px; line-height: 28px; padding: 0; user-select: none; }
+    .card .img .nav.prev { left: 6px; } .card .img .nav.next { right: 6px; }
+    .card .img .nav:hover { background: rgba(0,0,0,.75); }
+    .card .img .idx { position: absolute; bottom: 6px; right: 8px; background: rgba(0,0,0,.55); color: #fff; font-size: 11px; padding: 2px 6px; border-radius: 10px; }
+    .card .src-badge {
+      position: absolute; top: 8px; left: 8px;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+      padding: 3px 7px; border-radius: 4px;
+      background: rgba(0,0,0,.6); color: #fff;
+    }
+
+    .card .body { padding: 14px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+    .card .title { font-size: 14px; font-weight: 600; line-height: 1.35; color: #111; min-height: 38px; }
+    .card .price { font-size: 15px; font-weight: 700; color: #111; }
+    .card .price .deposit { color: var(--muted); font-weight: 500; }
+    .card .meta { color: var(--muted); font-size: 12px; }
+    .card .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: auto; padding-top: 8px; border-top: 1px solid #f3f4f6; }
+    .card a.open {
+      flex: 1; text-align: center; text-decoration: none; color: #fff; background: var(--accent);
+      padding: 7px 10px; border-radius: 6px; font-size: 12px; font-weight: 500;
+    }
+    .card a.open:hover { background: #1e40af; }
+    .card button.unfav {
+      background: #fef9c3; border: 1px solid #facc15; color: var(--gold);
+      padding: 7px 10px; border-radius: 6px; font-size: 12px; cursor: pointer;
+    }
+    .card button.unfav:hover { background: #fef08a; }
+
+    .empty-state {
+      text-align: center; padding: 80px 24px; color: var(--muted);
+    }
+    .empty-state .icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
+    .empty-state h2 { font-size: 18px; font-weight: 600; color: #374151; margin: 0 0 6px; }
+    .empty-state p { font-size: 14px; margin: 0; }
+    .empty-state a { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1><span class="star">🔖</span> Keep <span style="color:var(--muted);font-weight:500;font-size:13px;margin-left:4px">just in case</span></h1>
+    <span class="count" id="count"></span>
+    <a class="cross-link" href="/favorites.html">★ Favorites</a>
+    <a class="back" href="/">← Map</a>
+  </header>
+  <main>
+    <div id="root"></div>
+  </main>
+
+  <script>
+    const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+    function priceLine(r) {
+      const maint = r.maintenance != null ? ` <span class="meta">+ 관리비 ${r.maintenance}만</span>` : "";
+      return `<span class="deposit">${r.deposit}만 /</span> ${r.rent}만${maint}`;
+    }
+
+    function buildCard(r) {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.dataset.id = r.id;
+
+      const imgs = Array.isArray(r.images) && r.images.length ? r.images : (r.image ? [r.image] : []);
+      const py = r.pyeong ? ` · ${r.pyeong}평` : "";
+      card.innerHTML = `
+        <div class="img" data-images='${esc(JSON.stringify(imgs))}'>
+          ${imgs.length
+            ? `<img class="g-img" src="${esc(imgs[0])}" alt="">
+               ${imgs.length > 1 ? `<button class="nav prev">‹</button><button class="nav next">›</button>
+                                    <span class="idx"><span class="g-cur">1</span>/<span class="g-max">${imgs.length}</span></span>` : ""}`
+            : `<div class="empty">no image</div>`}
+          <span class="src-badge">${esc(r.source.toUpperCase())}</span>
+        </div>
+        <div class="body">
+          <div class="title">${esc(r.title || "(no title)")}</div>
+          <div class="price">${priceLine(r)}</div>
+          <div class="meta">${esc(r.type || "")}${py}</div>
+          <div class="meta">${esc(r.address || "")}</div>
+          <div class="row">
+            <a class="open" href="${esc(r.url)}" target="_blank" rel="noopener">열기 →</a>
+            <button class="unfav">🔖 Remove from Keep</button>
+          </div>
+        </div>`;
+
+      // Gallery wiring
+      const gal = card.querySelector(".img[data-images]");
+      let images = imgs.slice();
+      let idx = 0;
+      const img = gal.querySelector(".g-img");
+      const cur = gal.querySelector(".g-cur");
+      const max = gal.querySelector(".g-max");
+      if (img) {
+        const show = (i) => { idx = (i + images.length) % images.length; img.src = images[idx]; if (cur) cur.textContent = idx + 1; };
+        img.addEventListener("error", () => {
+          const failed = images[idx];
+          images = images.filter((u) => u !== failed);
+          if (max) max.textContent = images.length;
+          if (!images.length) { img.style.display = "none"; return; }
+          show(idx % images.length);
+        });
+        gal.querySelector(".prev")?.addEventListener("click", () => show(idx - 1));
+        gal.querySelector(".next")?.addEventListener("click", () => show(idx + 1));
+      }
+
+      // Unfavorite
+      card.querySelector(".unfav").addEventListener("click", async (ev) => {
+        ev.preventDefault();
+        ev.target.disabled = true;
+        await fetch("/action", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ id: r.id, action: "keep", value: false })
+        });
+        card.style.opacity = "0";
+        card.style.transform = "scale(0.95)";
+        card.style.transition = "all 0.2s";
+        setTimeout(() => { card.remove(); updateCount(-1); maybeShowEmpty(); }, 200);
+      });
+      return card;
+    }
+
+    let countSpan, root, total = 0;
+    function updateCount(delta = 0) {
+      total += delta;
+      countSpan.textContent = total === 1 ? "1 listing" : `${total} listings`;
+    }
+    function maybeShowEmpty() {
+      if (total === 0) showEmpty();
+    }
+    function showEmpty() {
+      root.innerHTML = `
+        <div class="empty-state">
+          <div class="icon">🔖</div>
+          <h2>Nothing kept yet</h2>
+          <p>Open a listing on the <a href="/">map</a> and tap 🔖 Keep to save it here.</p>
+        </div>`;
+    }
+
+    fetch("/kept").then((r) => r.json()).then((rows) => {
+      countSpan = document.getElementById("count");
+      root = document.getElementById("root");
+      total = rows.length;
+      countSpan.textContent = total === 1 ? "1 listing" : `${total} listings`;
+      if (!rows.length) { showEmpty(); return; }
+      const grid = document.createElement("div");
+      grid.className = "grid";
+      for (const r of rows) grid.appendChild(buildCard(r));
+      root.appendChild(grid);
+    });
+  </script>
+</body>
+</html>

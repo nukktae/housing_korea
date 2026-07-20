@@ -34,7 +34,7 @@ export function openDb(dbPath) {
   const db = new Database(dbPath);
   db.pragma("journal_mode = WAL");
   db.exec(SCHEMA);
-  for (const col of ["images TEXT", "removed_at TEXT", "favorited_at TEXT", "kept_at TEXT"]) {
+  for (const col of ["images TEXT", "removed_at TEXT", "favorited_at TEXT", "kept_at TEXT", "viewed_at TEXT"]) {
     try { db.exec(`ALTER TABLE listings ADD COLUMN ${col}`); } catch { /* exists */ }
   }
   return db;

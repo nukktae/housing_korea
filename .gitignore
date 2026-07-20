@@ -6,3 +6,5 @@ data/listings.db
 data/listings.db-shm
 data/listings.db-wal
 .DS_Store
+.next/
+.turbo/

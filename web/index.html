@@ -1,0 +1,938 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Seoul Housing Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+  <style>
+    :root { --header: 56px; --sidebar: 240px; --border: #e5e7eb; --muted: #6b7280; --accent: #2563eb; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; color: #111; }
+
+    header {
+      height: var(--header); background: #fff; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 12px; padding: 0 16px; position: relative; z-index: 1100;
+    }
+    header h1 { font-size: 15px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+    header .search-wrap { flex: 1; max-width: 480px; position: relative; }
+    header input.search {
+      width: 100%; height: 36px; padding: 0 12px 0 32px;
+      border: 1px solid var(--border); border-radius: 8px; font-size: 13px; outline: none;
+      background: #f9fafb;
+    }
+    header input.search:focus { border-color: var(--accent); background: #fff; }
+    header .search-wrap::before {
+      content: "🔍"; position: absolute; left: 9px; top: 50%; transform: translateY(-50%); font-size: 12px; opacity: 0.6;
+    }
+    header .meta { color: var(--muted); font-size: 12px; margin-left: auto; }
+    header .meta b { color: #111; font-weight: 600; }
+    header a.fav-link, header button.mode-toggle {
+      margin-left: 8px; text-decoration: none; color: #111; font-size: 13px;
+      padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border);
+      background: #fff; transition: background 0.1s; cursor: pointer; font-family: inherit;
+    }
+    header a.fav-link:hover { background: #fef3c7; border-color: #fbbf24; }
+    header a.keep-link {
+      margin-left: 8px; text-decoration: none; color: #111; font-size: 13px;
+      padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border);
+      background: #fff; transition: background 0.1s;
+    }
+    header a.keep-link:hover { background: #fef9c3; border-color: #facc15; }
+    header button.mode-toggle:hover { background: #f3f4f6; }
+    header button.mode-toggle.active { background: #fee2e2; border-color: #ef4444; color: #b91c1c; }
+
+    .layout { display: flex; height: calc(100vh - var(--header)); }
+    aside.sidebar {
+      width: var(--sidebar); background: #fff; border-right: 1px solid var(--border);
+      overflow-y: auto; padding: 8px 0;
+    }
+    aside h2 {
+      font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--muted); margin: 8px 16px 4px;
+    }
+    .sources { padding: 4px 16px 10px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+    .sources label { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; padding: 3px 0; font-size: 13px; }
+    .sources .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .sources .dot-dabang { background: #2563eb; }
+    .sources .dot-zigbang { background: #f97316; }
+    .sources .count { color: var(--muted); font-size: 12px; margin-left: auto; }
+
+    .gu {
+      border-bottom: 1px solid #f3f4f6;
+    }
+    .gu-header {
+      display: flex; align-items: center; gap: 6px; padding: 9px 16px;
+      cursor: pointer; font-size: 13px; font-weight: 500; user-select: none;
+    }
+    .gu-header:hover { background: #f9fafb; }
+    .gu-header .chev { font-size: 9px; color: var(--muted); width: 9px; transition: transform 0.1s; }
+    .gu.expanded .gu-header .chev { transform: rotate(90deg); }
+    .gu-header .count { color: var(--muted); font-size: 12px; margin-left: auto; }
+    .dongs { display: none; padding: 0 0 6px; }
+    .gu.expanded .dongs { display: block; }
+    .dong {
+      display: flex; align-items: center; padding: 5px 16px 5px 38px; font-size: 12px;
+      cursor: pointer; color: #374151;
+    }
+    .dong:hover { background: #f9fafb; color: var(--accent); }
+    .dong .count { color: var(--muted); font-size: 11px; margin-left: auto; }
+    .gu.active .gu-header, .dong.active { background: #eff6ff; color: var(--accent); }
+
+    main#map { flex: 1; height: 100%; position: relative; min-width: 0; }
+
+    aside.right-panel {
+      width: 340px; flex-shrink: 0; background: #fff; border-left: 1px solid var(--border);
+      overflow-y: auto; display: flex; flex-direction: column;
+    }
+    .rp-header {
+      position: sticky; top: 0; background: #fff; z-index: 2;
+      padding: 14px 16px; border-bottom: 1px solid var(--border);
+      font-size: 13px; font-weight: 600; color: #111;
+    }
+    .rp-header .num { color: var(--accent); }
+    .rp-header .sub { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 6px; }
+    .rp-list { padding: 4px 0; }
+    .rp-empty { padding: 40px 24px; text-align: center; color: var(--muted); font-size: 13px; }
+
+    .rp-card {
+      display: flex; gap: 12px; padding: 12px 16px; cursor: pointer;
+      border-bottom: 1px solid #f3f4f6; transition: background 0.1s;
+    }
+    .rp-card:hover { background: #f9fafb; }
+    .rp-card.viewed { opacity: 0.55; }
+    .rp-card.active { background: #eff6ff; }
+    .rp-card .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .rp-card .price { font-size: 15px; font-weight: 700; color: #111; }
+    .rp-card .price .src { font-size: 10px; font-weight: 700; color: #fff; padding: 1px 5px; border-radius: 3px; margin-left: 4px; vertical-align: 2px; }
+    .rp-card .price .src-dabang { background: #2563eb; } .rp-card .price .src-zigbang { background: #f97316; }
+    .rp-card .maint { font-size: 12px; color: var(--muted); }
+    .rp-card .meta { font-size: 12px; color: #374151; }
+    .rp-card .addr { font-size: 12px; color: var(--muted); }
+    .rp-card .title { font-size: 12px; color: #4b5563; line-height: 1.35; margin-top: 2px;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .rp-card .thumb {
+      width: 84px; height: 84px; border-radius: 8px; overflow: hidden;
+      background: #f3f4f6; flex-shrink: 0; align-self: flex-start;
+    }
+    .rp-card .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .rp-card .badge-row { display: flex; gap: 6px; margin-top: 2px; flex-wrap: wrap; }
+    .rp-card .badge-row .b { font-size: 10px; padding: 2px 5px; border-radius: 3px; font-weight: 600; }
+    .rp-card .badge-row .b-fav  { background: #fef3c7; color: #b45309; }
+    .rp-card .badge-row .b-keep { background: #fef9c3; color: #a16207; }
+    .rp-card .badge-row .b-viewed { background: #f3f4f6; color: #6b7280; }
+
+    .locate-btn {
+      position: absolute; bottom: 20px; right: 20px; z-index: 999;
+      width: 44px; height: 44px; border-radius: 50%; border: 0;
+      background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.18);
+      cursor: pointer; font-size: 20px; line-height: 1; padding: 0;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, transform 0.15s;
+      color: #2563eb;
+    }
+    .locate-btn:hover { background: #eff6ff; }
+    .locate-btn:active { transform: scale(0.95); }
+    .locate-btn.loading { color: #9ca3af; cursor: wait; }
+    .locate-btn.loading svg { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .me-marker {
+      width: 18px; height: 18px; border-radius: 50%;
+      background: #2563eb; border: 3px solid #fff;
+      box-shadow: 0 0 0 2px rgba(37,99,235,.35), 0 1px 4px rgba(0,0,0,.25);
+    }
+
+    .poi-star {
+      font-size: 42px; line-height: 1; color: #f59e0b;
+      text-shadow: 0 0 4px #fff, 0 0 6px #fff, 0 0 8px rgba(0,0,0,.35), 0 2px 4px rgba(0,0,0,.4);
+      cursor: pointer; user-select: none;
+    }
+    .poi-label {
+      background: #fff; border: 1px solid #f59e0b; color: #b45309;
+      padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 600;
+      box-shadow: 0 2px 6px rgba(0,0,0,.12); white-space: nowrap;
+    }
+
+    /* Card (Tinder-style) view */
+    #card-view {
+      position: absolute; inset: 0; z-index: 800;
+      background: linear-gradient(180deg, #fff5f6 0%, #ffe4e6 100%);
+      display: none; flex-direction: column; align-items: center;
+      padding: 24px 16px 16px; overflow: hidden;
+    }
+    #card-view.active { display: flex; }
+    .deck {
+      position: relative; width: 100%; max-width: 360px; flex: 1;
+      perspective: 1000px;
+    }
+    .swipe-card {
+      position: absolute; inset: 0; background: #fff; border-radius: 20px;
+      box-shadow: 0 8px 28px rgba(244, 63, 94, 0.18), 0 2px 6px rgba(0,0,0,.08);
+      overflow: hidden; display: flex; flex-direction: column; cursor: grab;
+      transition: transform 0.3s cubic-bezier(.4,.0,.2,1), opacity 0.3s;
+      user-select: none;
+    }
+    .swipe-card.dragging { transition: none; cursor: grabbing; }
+    .swipe-card[data-stack="0"] { z-index: 30; }
+    .swipe-card[data-stack="1"] { z-index: 20; transform: translateY(10px) scale(0.96); opacity: 0.96; }
+    .swipe-card[data-stack="2"] { z-index: 10; transform: translateY(20px) scale(0.92); opacity: 0.85; }
+    .swipe-card .img-wrap {
+      position: relative; width: 100%; flex: 1; min-height: 0;
+      background: #f3f4f6; overflow: hidden;
+    }
+    .swipe-card .img-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .swipe-card .img-wrap .nav {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      width: 36px; height: 36px; border-radius: 50%; background: rgba(0,0,0,.45);
+      color: #fff; border: 0; font-size: 18px; cursor: pointer; line-height: 36px; padding: 0;
+    }
+    .swipe-card .img-wrap .nav.prev { left: 10px; } .swipe-card .img-wrap .nav.next { right: 10px; }
+    .swipe-card .src-badge {
+      position: absolute; top: 14px; left: 14px;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+      padding: 4px 10px; border-radius: 6px;
+      background: rgba(0,0,0,.6); color: #fff;
+    }
+    .swipe-card .idx {
+      position: absolute; bottom: 14px; right: 14px;
+      background: rgba(0,0,0,.55); color: #fff; font-size: 12px; padding: 3px 8px; border-radius: 12px;
+    }
+    .swipe-card .info {
+      padding: 16px 18px 18px; background: #fff; flex-shrink: 0;
+    }
+    .swipe-card .info .title { font-size: 16px; font-weight: 700; color: #111; line-height: 1.3; margin-bottom: 6px; }
+    .swipe-card .info .price { font-size: 18px; font-weight: 700; color: #111; }
+    .swipe-card .info .price .deposit { color: #6b7280; font-weight: 500; }
+    .swipe-card .info .meta { color: #6b7280; font-size: 12px; margin-top: 4px; }
+    .swipe-card .stamp {
+      position: absolute; top: 28px; padding: 8px 18px; font-weight: 800; font-size: 24px;
+      border: 4px solid; border-radius: 8px; opacity: 0; transform: rotate(-12deg); pointer-events: none;
+      letter-spacing: 0.08em; transition: opacity 0.1s;
+    }
+    .swipe-card .stamp.like { right: 20px; color: #16a34a; border-color: #16a34a; transform: rotate(12deg); }
+    .swipe-card .stamp.nope { left: 20px; color: #ef4444; border-color: #ef4444; }
+
+    .swipe-actions {
+      display: flex; gap: 20px; justify-content: center; padding: 18px 0 8px;
+    }
+    .swipe-actions button {
+      width: 60px; height: 60px; border-radius: 50%; border: 0;
+      box-shadow: 0 4px 14px rgba(0,0,0,.12);
+      font-size: 26px; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s;
+      display: flex; align-items: center; justify-content: center; line-height: 1;
+    }
+    .swipe-actions button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.15); }
+    .swipe-actions button:active { transform: scale(0.95); }
+    .swipe-actions { gap: 28px; }
+    .swipe-actions .btn-nope { background: #fff; color: #ef4444; }
+    .swipe-actions .btn-keep { background: #fff; color: #ca8a04; }
+    .swipe-actions .btn-keep svg { display: block; }
+    .swipe-actions .btn-fav  { background: #fff; color: #16a34a; }
+    .swipe-card .stamp.keep { left: 50%; transform: translateX(-50%) rotate(0); color: #ca8a04; border-color: #ca8a04; top: 14px; font-size: 22px; }
+
+    .deck-empty {
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; color: #9ca3af; text-align: center;
+    }
+    .deck-empty .icon { font-size: 56px; margin-bottom: 12px; opacity: 0.5; }
+    .deck-empty h3 { color: #374151; font-size: 18px; margin: 0 0 6px; }
+    .deck-empty p { margin: 0; font-size: 14px; }
+    .deck-counter {
+      position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+      font-size: 12px; color: #9ca3af; font-weight: 500;
+    }
+
+    .popup { min-width: 240px; }
+    .popup b { display: block; font-size: 14px; margin-bottom: 4px; color: #111; }
+    .popup .price { font-weight: 600; color: #111; }
+    .popup .meta { color: #555; font-size: 12px; margin: 3px 0; }
+    .popup a.open-link { display: inline-block; margin-top: 4px; color: var(--accent); text-decoration: none; font-weight: 500; }
+    .actions { display: flex; gap: 6px; margin: 8px 0 2px; }
+    .actions button {
+      flex: 1; border: 1px solid var(--border); background: #fff; color: #374151;
+      padding: 6px 8px; border-radius: 6px; font-size: 12px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 4px;
+      transition: all 0.1s;
+    }
+    .actions button:hover { background: #f9fafb; }
+    .actions .btn-remove:hover { background: #fee2e2; border-color: #fca5a5; color: #b91c1c; }
+    .actions .btn-fav:hover { background: #fef3c7; border-color: #fbbf24; color: #b45309; }
+    .actions .btn-fav.active { background: #fef3c7; border-color: #fbbf24; color: #b45309; font-weight: 600; }
+    .actions .btn-keep:hover { background: #fef9c3; border-color: #facc15; color: #a16207; }
+    .actions .btn-keep.active { background: #fef9c3; border-color: #facc15; color: #a16207; font-weight: 600; }
+    .gallery { position: relative; width: 100%; height: 160px; border-radius: 6px; overflow: hidden; background: #f3f4f6; margin-bottom: 8px; }
+    .gallery img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .gallery .nav { position: absolute; top: 50%; transform: translateY(-50%); width: 28px; height: 28px; background: rgba(0,0,0,.55); color: #fff; border: 0; border-radius: 50%; cursor: pointer; font-size: 16px; line-height: 28px; padding: 0; user-select: none; }
+    .gallery .nav.prev { left: 6px; } .gallery .nav.next { right: 6px; }
+    .gallery .nav:hover { background: rgba(0,0,0,.75); }
+    .gallery .idx { position: absolute; bottom: 6px; right: 8px; background: rgba(0,0,0,.55); color: #fff; font-size: 11px; padding: 2px 6px; border-radius: 10px; }
+    .gallery .empty { display: flex; align-items: center; justify-content: center; height: 100%; color: #9ca3af; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Seoul Housing</h1>
+    <div class="search-wrap">
+      <input class="search" id="search" placeholder="주소, 동, 구, 제목 검색…" autocomplete="off">
+    </div>
+    <div class="meta"><b id="visible-count">0</b> / <span id="total-count">0</span> visible</div>
+    <button class="mode-toggle" id="mode-toggle">🃏 Card style</button>
+    <a class="keep-link" href="/kept.html">🔖 Keep</a>
+    <a class="fav-link" href="/favorites.html">★ Favorites</a>
+    <a class="fav-link" href="/shortlist.html" style="background:#fafafa;border-color:#e5e7eb">📋 Shortlist</a>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sources">
+        <label><input type="checkbox" id="cb-dabang" checked><span class="dot dot-dabang"></span> 다방<span class="count" id="n-dabang">0</span></label>
+        <label><input type="checkbox" id="cb-zigbang" checked><span class="dot dot-zigbang"></span> 직방<span class="count" id="n-zigbang">0</span></label>
+        <label style="margin-top:4px;border-top:1px solid #f3f4f6;padding-top:6px"><input type="checkbox" id="cb-hide-viewed"><span class="dot" style="background:#9ca3af"></span> 본 항목 숨기기<span class="count" id="n-viewed">0</span></label>
+      </div>
+      <h2>지역</h2>
+      <div id="areas"></div>
+    </aside>
+    <main id="map">
+      <button class="locate-btn" id="locate" title="내 위치">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path>
+        </svg>
+      </button>
+
+      <div id="card-view">
+        <span class="deck-counter" id="deck-counter"></span>
+        <div class="deck" id="deck"></div>
+        <div class="swipe-actions">
+          <button class="btn-nope" id="btn-nope" title="Remove (←)">✕</button>
+          <button class="btn-keep" id="btn-keep" title="Keep just in case (↑)">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M6 2h12a1 1 0 0 1 1 1v19l-7-4.5L5 22V3a1 1 0 0 1 1-1z"/>
+            </svg>
+          </button>
+          <button class="btn-fav" id="btn-fav" title="Favorite (→)">★</button>
+        </div>
+      </div>
+    </main>
+
+    <aside class="right-panel" id="right-panel">
+      <div class="rp-header">
+        매물 목록 <span class="num" id="rp-count">0</span>개
+        <span class="sub" id="rp-sub">현재 지도 영역</span>
+      </div>
+      <div class="rp-list" id="rp-list"></div>
+    </aside>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script>
+    const map = L.map("map", { preferCanvas: true }).setView([37.5665, 126.9780], 12);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19
+    }).addTo(map);
+
+    // Big star POIs — always visible on top
+    const POIS = [
+      { name: "국민대학교",   sub: "정릉로 77, 성북구",        lat: 37.6098, lng: 126.9979 },
+      { name: "파크리오 아파트", sub: "올림픽로 435, 송파구",     lat: 37.5160, lng: 127.1045 }
+    ];
+    for (const p of POIS) {
+      L.marker([p.lat, p.lng], {
+        icon: L.divIcon({ className: "", html: "★", iconSize: [42, 42], iconAnchor: [21, 38] }),
+        zIndexOffset: 10000,
+        riseOnHover: true
+      })
+        .addTo(map)
+        .bindPopup(`<div style="font-size:14px"><b>${p.name}</b><br><span style="color:#6b7280;font-size:12px">${p.sub}</span></div>`);
+      // Persistent label slightly above the star
+      L.marker([p.lat, p.lng], {
+        icon: L.divIcon({ className: "", html: `<div class="poi-label">★ ${p.name}</div>`, iconSize: [null, null], iconAnchor: [0, 50] }),
+        interactive: false,
+        zIndexOffset: 9999
+      }).addTo(map);
+    }
+    // Style the star divIcon HTML via classlist after creation isn't ideal —
+    // instead override with CSS using the inline HTML wrapper:
+    const styleAllStars = () => {
+      document.querySelectorAll(".leaflet-marker-icon").forEach((el) => {
+        if (el.innerHTML === "★" && !el.classList.contains("poi-star")) el.classList.add("poi-star");
+      });
+    };
+    map.on("layeradd", styleAllStars);
+    setTimeout(styleAllStars, 0);
+
+    const colors = { dabang: "#2563eb", zigbang: "#f97316" };
+    const VIEWED_COLOR = "#9ca3af";
+    const layers = {
+      dabang: L.markerClusterGroup({ chunkedLoading: true, maxClusterRadius: 40 }),
+      zigbang: L.markerClusterGroup({ chunkedLoading: true, maxClusterRadius: 40 })
+    };
+    map.addLayer(layers.dabang); map.addLayer(layers.zigbang);
+
+    const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+    function popupHtml(r) {
+      const imgs = Array.isArray(r.images) && r.images.length ? r.images : (r.image ? [r.image] : []);
+      const imgsJson = esc(JSON.stringify(imgs));
+      const gallery = imgs.length
+        ? `<div class="gallery" data-images='${imgsJson}'>
+             <img class="g-img" src="${esc(imgs[0])}" alt="">
+             ${imgs.length > 1 ? `<button class="nav prev">‹</button><button class="nav next">›</button>
+                                   <span class="idx"><span class="g-cur">1</span>/<span class="g-max">${imgs.length}</span></span>` : ""}
+           </div>`
+        : `<div class="gallery"><div class="empty">no image</div></div>`;
+      const main = `${r.deposit}만 / <span class="price">${r.rent}만</span>`;
+      const maint = r.maintenance != null ? ` · 관리비 ${r.maintenance}만` : "";
+      const py = r.pyeong ? ` · ${r.pyeong}평` : "";
+      const isFav = !!r.favorited_at;
+      const isKept = !!r.kept_at;
+      return `<div class="popup" data-id="${esc(r.id)}">
+        ${gallery}
+        <b>${esc(r.title || "(no title)")}</b>
+        <div>${main}${maint}</div>
+        <div class="meta">${esc(r.type || "")}${py}</div>
+        <div class="meta">${esc(r.address || "")}</div>
+        <div class="actions">
+          <button class="btn-fav${isFav ? " active" : ""}" data-action="favorite">★ <span class="label">${isFav ? "Favorited" : "Favorite"}</span></button>
+          <button class="btn-keep${isKept ? " active" : ""}" data-action="keep">🔖 <span class="label">${isKept ? "Kept" : "Keep"}</span></button>
+          <button class="btn-remove" data-action="remove">✕</button>
+        </div>
+        <a class="open-link" href="${esc(r.url)}" target="_blank" rel="noopener">${r.source.toUpperCase()} 열기 →</a>
+      </div>`;
+    }
+
+    async function postAction(id, action, value) {
+      const res = await fetch("/action", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id, action, value })
+      });
+      return res.json();
+    }
+
+    map.on("popupopen", (e) => {
+      const root = e.popup.getElement();
+      const gal = root?.querySelector(".gallery[data-images]");
+      if (!gal) return;
+      let images; try { images = JSON.parse(gal.getAttribute("data-images")); } catch { return; }
+      let idx = 0;
+      const img = gal.querySelector(".g-img"), cur = gal.querySelector(".g-cur"), max = gal.querySelector(".g-max");
+      const show = (i) => { idx = (i + images.length) % images.length; img.src = images[idx]; if (cur) cur.textContent = idx + 1; };
+      img.addEventListener("error", () => {
+        const failed = images[idx];
+        images = images.filter((u) => u !== failed);
+        if (max) max.textContent = images.length;
+        if (!images.length) { img.style.display = "none"; return; }
+        show(idx % images.length);
+      });
+      gal.querySelector(".prev")?.addEventListener("click", (ev) => { ev.stopPropagation(); show(idx - 1); });
+      gal.querySelector(".next")?.addEventListener("click", (ev) => { ev.stopPropagation(); show(idx + 1); });
+
+      const popup = root.querySelector(".popup");
+      const id = popup?.dataset.id;
+      if (!id) return;
+      const entry = MARKERS.get(id);
+      if (!entry) return;
+
+      // Auto-mark as viewed on popup open
+      if (!entry.row.viewed_at) {
+        postAction(id, "view", true).then((res) => {
+          entry.row.viewed_at = res.ts;
+          refreshMarkerStyle(entry.row);
+        });
+      }
+
+      const favBtn = popup.querySelector(".btn-fav");
+      const keepBtn = popup.querySelector(".btn-keep");
+      const removeBtn = popup.querySelector(".btn-remove");
+
+      favBtn?.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        const wasActive = favBtn.classList.contains("active");
+        favBtn.disabled = true;
+        const r = await postAction(id, "favorite", !wasActive);
+        entry.row.favorited_at = r.ts;
+        favBtn.classList.toggle("active", !wasActive);
+        favBtn.querySelector(".label").textContent = wasActive ? "Favorite" : "Favorited";
+        favBtn.disabled = false;
+      });
+
+      keepBtn?.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        const wasActive = keepBtn.classList.contains("active");
+        keepBtn.disabled = true;
+        const r = await postAction(id, "keep", !wasActive);
+        entry.row.kept_at = r.ts;
+        keepBtn.classList.toggle("active", !wasActive);
+        keepBtn.querySelector(".label").textContent = wasActive ? "Keep" : "Kept";
+        keepBtn.disabled = false;
+      });
+
+      removeBtn?.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        removeBtn.disabled = true;
+        await postAction(id, "remove", true);
+        entry.row.removed_at = new Date().toISOString();
+        e.popup.close();
+        layers[entry.row.source].removeLayer(entry.marker);
+        MARKERS.delete(id);
+        applyFilter();
+      });
+    });
+
+    let ALL = [];          // every row
+    let MARKERS = new Map(); // id -> { row, marker }
+
+    function markerStyle(r) {
+      const viewed = !!r.viewed_at;
+      return {
+        radius: viewed ? 5 : 7,
+        fillColor: viewed ? VIEWED_COLOR : colors[r.source],
+        color: "#fff",
+        weight: 1.5,
+        fillOpacity: viewed ? 0.55 : 0.85
+      };
+    }
+    function buildMarker(r) {
+      const m = L.circleMarker([r.lat, r.lng], markerStyle(r));
+      m.bindPopup(popupHtml(r), { maxWidth: 260 });
+      return m;
+    }
+    function refreshMarkerStyle(r) {
+      const entry = MARKERS.get(r.id);
+      if (entry) entry.marker.setStyle(markerStyle(r));
+    }
+
+    function applyFilter() {
+      const q = document.getElementById("search").value.trim().toLowerCase();
+      const showD = document.getElementById("cb-dabang").checked;
+      const showZ = document.getElementById("cb-zigbang").checked;
+      const hideViewed = document.getElementById("cb-hide-viewed").checked;
+      let nd = 0, nz = 0, nv = 0, visible = 0;
+
+      const matches = (r) => {
+        if (r.source === "dabang" && !showD) return false;
+        if (r.source === "zigbang" && !showZ) return false;
+        if (hideViewed && r.viewed_at) return false;
+        if (!q) return true;
+        const blob = `${r.address || ""} ${r.title || ""} ${r.type || ""}`.toLowerCase();
+        return blob.includes(q);
+      };
+
+      // Rebuild cluster layers from scratch for correctness
+      layers.dabang.clearLayers();
+      layers.zigbang.clearLayers();
+      for (const { row: r, marker: m } of MARKERS.values()) {
+        if (r.viewed_at) nv++;
+        if (!matches(r)) continue;
+        layers[r.source].addLayer(m);
+        if (r.source === "dabang") nd++; else nz++;
+        visible++;
+      }
+      document.getElementById("n-dabang").textContent = nd;
+      document.getElementById("n-zigbang").textContent = nz;
+      document.getElementById("n-viewed").textContent = nv;
+      document.getElementById("visible-count").textContent = visible;
+      updateRightPanel();
+    }
+
+    function updateRightPanel() {
+      const bounds = map.getBounds();
+      const rows = [];
+      for (const { row: r, marker: m } of MARKERS.values()) {
+        if (!layers[r.source].hasLayer(m)) continue;
+        if (!bounds.contains([r.lat, r.lng])) continue;
+        rows.push(r);
+      }
+      rows.sort((a, b) => (a.rent - b.rent) || (a.deposit - b.deposit));
+      document.getElementById("rp-count").textContent = rows.length;
+      const list = document.getElementById("rp-list");
+      list.innerHTML = "";
+      if (!rows.length) {
+        list.innerHTML = '<div class="rp-empty">지도를 움직이거나 줌인하면 해당 영역의 매물이 표시됩니다</div>';
+        return;
+      }
+      const frag = document.createDocumentFragment();
+      const cap = 200;
+      for (const r of rows.slice(0, cap)) frag.appendChild(buildRpCard(r));
+      if (rows.length > cap) {
+        const more = document.createElement("div");
+        more.className = "rp-empty";
+        more.style.padding = "12px 16px";
+        more.textContent = `+${rows.length - cap}개 (줌인해서 더 보기)`;
+        frag.appendChild(more);
+      }
+      list.appendChild(frag);
+    }
+
+    function buildRpCard(r) {
+      const el = document.createElement("div");
+      el.className = "rp-card" + (r.viewed_at ? " viewed" : "");
+      el.dataset.id = r.id;
+      const thumb = (r.images && r.images[0]) || r.image;
+      const maint = r.maintenance != null ? `<div class="maint">관리비 ${r.maintenance}만원</div>` : "";
+      const py = r.pyeong ? `${r.pyeong}평` : "";
+      const badges = [];
+      if (r.favorited_at) badges.push('<span class="b b-fav">★ Favorite</span>');
+      if (r.kept_at) badges.push('<span class="b b-keep">🔖 Keep</span>');
+      if (r.viewed_at) badges.push('<span class="b b-viewed">본 항목</span>');
+      el.innerHTML = `
+        <div class="info">
+          <div class="price">월세 ${r.deposit}/${r.rent}<span class="src src-${r.source}">${r.source === "dabang" ? "다방" : "직방"}</span></div>
+          ${maint}
+          <div class="meta">${esc(r.type || "")}${py ? " · " + py : ""}</div>
+          <div class="addr">${esc(r.address || "")}</div>
+          <div class="title">${esc(r.title || "")}</div>
+          ${badges.length ? `<div class="badge-row">${badges.join("")}</div>` : ""}
+        </div>
+        ${thumb ? `<div class="thumb"><img src="${esc(thumb)}" alt="" onerror="this.parentElement.style.display='none'"></div>` : ""}
+      `;
+      el.addEventListener("click", () => {
+        const entry = MARKERS.get(r.id);
+        if (!entry) return;
+        document.querySelectorAll(".rp-card.active").forEach((e) => e.classList.remove("active"));
+        el.classList.add("active");
+        const cluster = layers[r.source];
+        if (cluster && cluster.hasLayer(entry.marker)) {
+          // zoomToShowLayer handles both: marker in a cluster (zooms/spiderfies) and marker already visible.
+          cluster.zoomToShowLayer(entry.marker, () => {
+            entry.marker.openPopup();
+          });
+        } else {
+          map.setView([r.lat, r.lng], Math.max(map.getZoom(), 16), { animate: true });
+          setTimeout(() => entry.marker.openPopup(), 320);
+        }
+      });
+      return el;
+    }
+
+    map.on("moveend", updateRightPanel);
+    map.on("zoomend", updateRightPanel);
+
+    function renderAreas(areas) {
+      const root = document.getElementById("areas");
+      root.innerHTML = "";
+      for (const g of areas) {
+        const guEl = document.createElement("div");
+        guEl.className = "gu";
+        guEl.innerHTML = `
+          <div class="gu-header">
+            <span class="chev">▶</span>
+            <span class="name">${esc(g.gu)}</span>
+            <span class="count">${g.count}</span>
+          </div>
+          <div class="dongs"></div>`;
+        const header = guEl.querySelector(".gu-header");
+        const dongsEl = guEl.querySelector(".dongs");
+        for (const d of g.dongs) {
+          const dEl = document.createElement("div");
+          dEl.className = "dong";
+          dEl.innerHTML = `<span class="name">${esc(d.dong)}</span><span class="count">${d.count}</span>`;
+          dEl.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            document.querySelectorAll(".dong.active, .gu.active").forEach((el) => el.classList.remove("active"));
+            dEl.classList.add("active");
+            const sw = [d.sw.lat, d.sw.lng], ne = [d.ne.lat, d.ne.lng];
+            if (sw[0] === ne[0] && sw[1] === ne[1]) map.setView(sw, 16);
+            else map.fitBounds([sw, ne], { padding: [40, 40], maxZoom: 16 });
+          });
+          dongsEl.appendChild(dEl);
+        }
+        header.addEventListener("click", () => {
+          const wasExpanded = guEl.classList.contains("expanded");
+          // collapse others (single-open behavior)
+          document.querySelectorAll(".gu.expanded").forEach((el) => el.classList.remove("expanded"));
+          document.querySelectorAll(".gu.active, .dong.active").forEach((el) => el.classList.remove("active"));
+          if (!wasExpanded) guEl.classList.add("expanded");
+          guEl.classList.add("active");
+          const sw = [g.sw.lat, g.sw.lng], ne = [g.ne.lat, g.ne.lng];
+          map.fitBounds([sw, ne], { padding: [40, 40], maxZoom: 14 });
+        });
+        root.appendChild(guEl);
+      }
+    }
+
+    Promise.all([
+      fetch("/listings").then((r) => r.json()),
+      fetch("/areas").then((r) => r.json())
+    ]).then(([rows, areas]) => {
+      ALL = rows;
+      for (const r of rows) MARKERS.set(r.id, { row: r, marker: buildMarker(r) });
+      document.getElementById("total-count").textContent = rows.length;
+      renderAreas(areas);
+      applyFilter();
+    });
+
+    document.getElementById("cb-dabang").addEventListener("change", applyFilter);
+    document.getElementById("cb-zigbang").addEventListener("change", applyFilter);
+    document.getElementById("cb-hide-viewed").addEventListener("change", applyFilter);
+    let searchTimer;
+    document.getElementById("search").addEventListener("input", () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(applyFilter, 120);
+    });
+    document.getElementById("search").addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      // Fit bounds to currently visible markers
+      const pts = [];
+      for (const { row: r, marker: m } of MARKERS.values()) {
+        if (layers[r.source].hasLayer(m)) pts.push([r.lat, r.lng]);
+      }
+      if (pts.length) map.fitBounds(pts, { padding: [40, 40], maxZoom: 16 });
+    });
+
+    // ===== Card (Tinder-style) view =====
+    const cardView = document.getElementById("card-view");
+    const deckEl = document.getElementById("deck");
+    const deckCounter = document.getElementById("deck-counter");
+    const modeToggle = document.getElementById("mode-toggle");
+    let cardMode = false;
+    let deck = [];      // rows queued to swipe
+    let deckPos = 0;    // current top-of-deck index
+
+    function visibleRows() {
+      const q = document.getElementById("search").value.trim().toLowerCase();
+      const showD = document.getElementById("cb-dabang").checked;
+      const showZ = document.getElementById("cb-zigbang").checked;
+      const out = [];
+      for (const { row: r } of MARKERS.values()) {
+        if (r.viewed_at) continue;               // never show already-seen in the deck
+        if (r.source === "dabang" && !showD) continue;
+        if (r.source === "zigbang" && !showZ) continue;
+        if (q) {
+          const blob = `${r.address || ""} ${r.title || ""} ${r.type || ""}`.toLowerCase();
+          if (!blob.includes(q)) continue;
+        }
+        out.push(r);
+      }
+      return out;
+    }
+
+    function renderDeck() {
+      deckEl.innerHTML = "";
+      const remaining = deck.length - deckPos;
+      deckCounter.textContent = remaining > 0 ? `${deckPos + 1} / ${deck.length}` : "";
+      if (remaining <= 0) {
+        deckEl.innerHTML = `
+          <div class="deck-empty">
+            <div class="icon">🎉</div>
+            <h3>다 봤어요!</h3>
+            <p>No more listings in this filter.</p>
+          </div>`;
+        return;
+      }
+      for (let i = 0; i < Math.min(3, remaining); i++) {
+        const r = deck[deckPos + i];
+        deckEl.appendChild(buildSwipeCard(r, i));
+      }
+      // Auto-mark the top card as viewed
+      const top = deck[deckPos];
+      if (top && !top.viewed_at) {
+        postAction(top.id, "view", true).then((res) => {
+          top.viewed_at = res.ts;
+          refreshMarkerStyle(top);
+        });
+      }
+      wireTopCard();
+    }
+
+    function buildSwipeCard(r, stackIdx) {
+      const imgs = Array.isArray(r.images) && r.images.length ? r.images : (r.image ? [r.image] : []);
+      const py = r.pyeong ? ` · ${r.pyeong}평` : "";
+      const maint = r.maintenance != null ? ` <span class="meta">+ 관리비 ${r.maintenance}만</span>` : "";
+      const card = document.createElement("div");
+      card.className = "swipe-card";
+      card.dataset.stack = stackIdx;
+      card.dataset.id = r.id;
+      card.innerHTML = `
+        <div class="img-wrap" data-images='${esc(JSON.stringify(imgs))}'>
+          ${imgs.length
+            ? `<img class="g-img" src="${esc(imgs[0])}" alt="">
+               ${imgs.length > 1 ? `<button class="nav prev">‹</button><button class="nav next">›</button>
+                                    <span class="idx"><span class="g-cur">1</span>/<span class="g-max">${imgs.length}</span></span>` : ""}`
+            : `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:13px">no image</div>`}
+          <span class="src-badge">${esc(r.source.toUpperCase())}</span>
+          <div class="stamp like">LIKE</div>
+          <div class="stamp nope">NOPE</div>
+          <div class="stamp keep">KEEP</div>
+        </div>
+        <div class="info">
+          <div class="title">${esc(r.title || "(no title)")}</div>
+          <div class="price"><span class="deposit">${r.deposit}만 /</span> ${r.rent}만${maint}</div>
+          <div class="meta">${esc(r.type || "")}${py}</div>
+          <div class="meta">${esc(r.address || "")}</div>
+        </div>`;
+
+      // Gallery
+      const wrap = card.querySelector(".img-wrap[data-images]");
+      let images = imgs.slice();
+      let idx = 0;
+      const img = wrap.querySelector(".g-img");
+      const cur = wrap.querySelector(".g-cur");
+      const max = wrap.querySelector(".g-max");
+      if (img) {
+        const show = (i) => { idx = (i + images.length) % images.length; img.src = images[idx]; if (cur) cur.textContent = idx + 1; };
+        img.addEventListener("error", () => {
+          const failed = images[idx];
+          images = images.filter((u) => u !== failed);
+          if (max) max.textContent = images.length;
+          if (!images.length) { img.style.display = "none"; return; }
+          show(idx % images.length);
+        });
+        wrap.querySelector(".prev")?.addEventListener("click", (e) => { e.stopPropagation(); show(idx - 1); });
+        wrap.querySelector(".next")?.addEventListener("click", (e) => { e.stopPropagation(); show(idx + 1); });
+      }
+      return card;
+    }
+
+    function wireTopCard() {
+      const top = deckEl.querySelector('.swipe-card[data-stack="0"]');
+      if (!top) return;
+      const like = top.querySelector(".stamp.like");
+      const nope = top.querySelector(".stamp.nope");
+      const keep = top.querySelector(".stamp.keep");
+      let startX = 0, startY = 0, dx = 0, dy = 0, dragging = false, pointerId = null;
+
+      const onDown = (ev) => {
+        if (ev.target.closest(".nav")) return;
+        dragging = true; pointerId = ev.pointerId;
+        startX = ev.clientX; startY = ev.clientY; dx = 0; dy = 0;
+        top.classList.add("dragging");
+        top.setPointerCapture?.(pointerId);
+      };
+      const onMove = (ev) => {
+        if (!dragging) return;
+        dx = ev.clientX - startX;
+        dy = ev.clientY - startY;
+        const upBias = dy < -40 && Math.abs(dy) > Math.abs(dx) * 1.2;
+        if (upBias) {
+          top.style.transform = `translate(${dx * 0.3}px, ${dy}px)`;
+          like.style.opacity = nope.style.opacity = 0;
+          keep.style.opacity = Math.min(1, Math.abs(dy) / 140);
+        } else {
+          const rot = dx / 14;
+          top.style.transform = `translate(${dx}px, ${dy * 0.3}px) rotate(${rot}deg)`;
+          const r = Math.min(1, Math.abs(dx) / 120);
+          like.style.opacity = dx > 0 ? r : 0;
+          nope.style.opacity = dx < 0 ? r : 0;
+          keep.style.opacity = 0;
+        }
+      };
+      const onUp = () => {
+        if (!dragging) return;
+        dragging = false;
+        top.classList.remove("dragging");
+        try { top.releasePointerCapture?.(pointerId); } catch {}
+        const upBias = dy < -40 && Math.abs(dy) > Math.abs(dx) * 1.2;
+        if (upBias && dy < -120) commitSwipe("keep");
+        else if (dx > 100) commitSwipe("favorite");
+        else if (dx < -100) commitSwipe("remove");
+        else { top.style.transform = ""; like.style.opacity = nope.style.opacity = keep.style.opacity = 0; }
+      };
+      top.addEventListener("pointerdown", onDown);
+      top.addEventListener("pointermove", onMove);
+      top.addEventListener("pointerup", onUp);
+      top.addEventListener("pointercancel", onUp);
+    }
+
+    async function commitSwipe(kind) {
+      const r = deck[deckPos];
+      if (!r) return;
+      const top = deckEl.querySelector('.swipe-card[data-stack="0"]');
+      if (top) {
+        top.style.transition = "transform 0.35s ease-out, opacity 0.35s";
+        if (kind === "favorite")      top.style.transform = "translate(800px, -40px) rotate(30deg)";
+        else if (kind === "remove")   top.style.transform = "translate(-800px, -40px) rotate(-30deg)";
+        else if (kind === "keep")     top.style.transform = "translate(0, -800px)";
+        else                          top.style.transform = "translateY(-40px)";
+        top.style.opacity = "0";
+      }
+      if (kind === "favorite") {
+        const res = await postAction(r.id, "favorite", true);
+        r.favorited_at = res.ts;
+        const entry = MARKERS.get(r.id);
+        if (entry) entry.marker.setPopupContent(popupHtml(r));
+      } else if (kind === "keep") {
+        const res = await postAction(r.id, "keep", true);
+        r.kept_at = res.ts;
+        const entry = MARKERS.get(r.id);
+        if (entry) entry.marker.setPopupContent(popupHtml(r));
+      } else if (kind === "remove") {
+        await postAction(r.id, "remove", true);
+        const entry = MARKERS.get(r.id);
+        if (entry) {
+          layers[entry.row.source].removeLayer(entry.marker);
+          MARKERS.delete(r.id);
+        }
+      }
+      setTimeout(() => { deckPos++; renderDeck(); applyFilter(); }, 280);
+    }
+
+    function enterCardMode() {
+      deck = visibleRows();
+      deckPos = 0;
+      cardView.classList.add("active");
+      cardMode = true;
+      modeToggle.classList.add("active");
+      modeToggle.textContent = "🗺  Map";
+      document.getElementById("locate").style.display = "none";
+      renderDeck();
+    }
+    function exitCardMode() {
+      cardView.classList.remove("active");
+      cardMode = false;
+      modeToggle.classList.remove("active");
+      modeToggle.textContent = "🃏 Card style";
+      document.getElementById("locate").style.display = "";
+      map.invalidateSize();
+    }
+    modeToggle.addEventListener("click", () => cardMode ? exitCardMode() : enterCardMode());
+
+    document.getElementById("btn-nope").addEventListener("click", () => commitSwipe("remove"));
+    document.getElementById("btn-fav").addEventListener("click", () => commitSwipe("favorite"));
+    document.getElementById("btn-keep").addEventListener("click", () => commitSwipe("keep"));
+    window.addEventListener("keydown", (e) => {
+      if (!cardMode) return;
+      if (e.key === "ArrowLeft")  commitSwipe("remove");
+      if (e.key === "ArrowRight") commitSwipe("favorite");
+      if (e.key === "ArrowUp")    commitSwipe("keep");
+      if (e.key === " ")          commitSwipe("skip");
+      if (e.key === "Escape")     exitCardMode();
+    });
+
+    let meMarker = null;
+    document.getElementById("locate").addEventListener("click", () => {
+      const btn = document.getElementById("locate");
+      if (!navigator.geolocation) { alert("Geolocation is not supported by this browser."); return; }
+      btn.classList.add("loading");
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          btn.classList.remove("loading");
+          const { latitude, longitude, accuracy } = pos.coords;
+          const latlng = [latitude, longitude];
+          if (meMarker) map.removeLayer(meMarker);
+          meMarker = L.marker(latlng, {
+            icon: L.divIcon({ className: "", html: '<div class="me-marker"></div>', iconSize: [18, 18], iconAnchor: [9, 9] })
+          }).addTo(map).bindPopup(`내 위치 (±${Math.round(accuracy)}m)`);
+          map.flyTo(latlng, 16, { duration: 0.8 });
+        },
+        (err) => {
+          btn.classList.remove("loading");
+          const msg = {
+            1: "Location permission denied. Allow location access in your browser settings.",
+            2: "Location unavailable.",
+            3: "Location request timed out."
+          }[err.code] || ("Could not get location: " + err.message);
+          alert(msg);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      );
+    });
+  </script>
+</body>
+</html>

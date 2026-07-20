@@ -1,0 +1,753 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shortlist · Seoul Housing</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    :root {
+      --muted: #8e8e93;
+      --text: #111;
+      --card: #fafafa;
+      --accent: #2563eb;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: #fff; color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Inter", sans-serif;
+      -webkit-font-smoothing: antialiased; }
+
+    header {
+      position: sticky; top: 0; z-index: 10; background: #fff;
+      padding: 28px 32px 18px; display: flex; align-items: baseline; gap: 14px;
+    }
+    header h1 {
+      font-size: 22px; font-weight: 700; margin: 0; letter-spacing: -0.02em;
+    }
+    header .count {
+      color: var(--muted); font-size: 14px; font-weight: 500;
+    }
+    header nav { margin-left: auto; display: flex; gap: 18px; }
+    header nav a {
+      color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 500;
+      transition: color 0.15s;
+    }
+    header nav a:hover { color: var(--text); }
+
+    .toolbar { padding: 0 32px 18px; max-width: 1400px; margin: 0 auto; display: flex; }
+    .toggle {
+      display: inline-flex; background: var(--card); border-radius: 999px; padding: 3px; gap: 2px;
+    }
+    .toggle button {
+      border: 0; background: transparent; color: var(--muted);
+      padding: 7px 18px; border-radius: 999px; font-size: 13px; font-weight: 500;
+      cursor: pointer; font-family: inherit; transition: background 0.15s, color 0.15s;
+    }
+    .toggle button:hover { color: var(--text); }
+    .toggle button.active { background: #fff; color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+
+    .chips {
+      max-width: 1400px; margin: 0 auto; padding: 0 32px 16px;
+      display: flex; gap: 6px; flex-wrap: wrap;
+    }
+    .chip {
+      border: 0; background: var(--card); color: var(--muted);
+      padding: 6px 14px; border-radius: 999px;
+      font-size: 13px; font-weight: 500; cursor: pointer;
+      font-family: inherit; transition: background 0.12s, color 0.12s;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .chip:hover { background: #efeff2; color: var(--text); }
+    .chip.active { background: #111; color: #fff; }
+    .chip .num { font-size: 11px; opacity: 0.6; font-weight: 500; }
+    .chip.active .num { opacity: 0.75; }
+
+    main { padding: 0 32px 48px; max-width: 1400px; margin: 0 auto; }
+    .grid {
+      display: grid; gap: 18px;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    }
+
+    .card {
+      background: var(--card); border-radius: 14px; overflow: hidden;
+      display: flex; flex-direction: column; cursor: pointer;
+      transition: transform 0.18s, background 0.18s;
+    }
+    .card:hover { transform: translateY(-2px); background: #f4f4f5; }
+
+    .card .img {
+      position: relative; width: 100%; aspect-ratio: 4 / 3; overflow: hidden; background: #f3f4f6;
+    }
+    .card .img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .card .img .empty { display: flex; align-items: center; justify-content: center; height: 100%; color: #c0c0c5; font-size: 12px; }
+    .card .img .src {
+      position: absolute; top: 10px; left: 10px;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+      padding: 3px 8px; border-radius: 4px;
+      background: rgba(255,255,255,0.95); color: var(--text);
+    }
+    .card .img .nav {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      width: 28px; height: 28px; border-radius: 50%; background: rgba(0,0,0,.4);
+      color: #fff; border: 0; cursor: pointer; font-size: 16px; padding: 0;
+      opacity: 0; transition: opacity 0.15s;
+    }
+    .card:hover .img .nav { opacity: 1; }
+    .card .img .nav.prev { left: 8px; } .card .img .nav.next { right: 8px; }
+    .card .img .idx { position: absolute; bottom: 8px; right: 10px;
+      background: rgba(0,0,0,.5); color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 8px; }
+    .card .del-btn {
+      position: absolute; top: 10px; right: 10px;
+      width: 30px; height: 30px; border-radius: 50%; border: 0;
+      background: rgba(255,255,255,0.95); color: #ef4444; cursor: pointer;
+      font-size: 16px; line-height: 1; padding: 0;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; transform: scale(0.9); transition: opacity 0.15s, transform 0.15s, background 0.15s;
+      box-shadow: 0 1px 4px rgba(0,0,0,.12);
+    }
+    .card:hover .del-btn { opacity: 1; transform: scale(1); }
+    .card .del-btn:hover { background: #ef4444; color: #fff; }
+    .card.removing { opacity: 0; transform: scale(0.94); pointer-events: none; }
+
+    .card .body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 4px; }
+    .card .price { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+    .card .price .deposit { color: var(--muted); font-weight: 500; margin-right: 2px; }
+    .card .price .slash   { color: var(--muted); font-weight: 500; margin: 0 2px; }
+    .card .maint { color: var(--muted); font-size: 12px; }
+    .card .meta  { color: #4b5563; font-size: 13px; margin-top: 4px; }
+    .card .addr  { color: var(--muted); font-size: 12px; }
+    .card .title {
+      color: #374151; font-size: 12px; line-height: 1.4; margin-top: 4px;
+      display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .card .tags { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+    .card .tag {
+      font-size: 10px; padding: 2px 7px; border-radius: 999px;
+      background: #fff; color: var(--muted); font-weight: 500;
+    }
+    .card .tag.fav  { background: #fffbeb; color: #b45309; }
+    .card .tag.keep { background: #fefce8; color: #a16207; }
+    .card .tag.rec  { background: #fce7f3; color: #be185d; }
+
+    .card .rec-btn {
+      width: 100%; margin-top: 10px; padding: 9px 12px;
+      border: 0; background: #fff; border-radius: 10px;
+      font-family: inherit; font-size: 12px; font-weight: 600; color: #6b7280;
+      cursor: pointer; transition: background 0.15s, color 0.15s;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .card .rec-btn:hover { background: #fce7f3; color: #be185d; }
+    .card .rec-btn.active { background: #fce7f3; color: #be185d; }
+    .card .rec-btn.active::before { content: "✓ "; }
+    .card .rec-btn:disabled { opacity: 0.55; cursor: progress; }
+    .card.recommended { box-shadow: 0 0 0 2px #fce7f3 inset; }
+
+    .chip.active.rec-chip { background: #be185d; }
+
+    /* === Mobile === */
+    @media (max-width: 640px) {
+      header { padding: 18px 16px 12px; gap: 10px; }
+      header h1 { font-size: 18px; }
+      header .count { font-size: 12px; }
+      header nav { gap: 10px; }
+      header nav a { padding: 6px 10px; font-size: 12px; }
+
+      .toolbar { padding: 0 16px 12px; }
+      .toggle button { padding: 6px 14px; font-size: 12px; }
+
+      .chips { padding: 0 16px 12px; gap: 5px; }
+      .chip { padding: 5px 11px; font-size: 12px; }
+      .chip .num { font-size: 10px; }
+
+      main { padding: 0 16px 36px; }
+      .grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px; }
+      .card { border-radius: 10px; }
+      .card .body { padding: 10px 12px 12px; gap: 2px; }
+      .card .price { font-size: 14px; }
+      .card .price .src { font-size: 9px; padding: 1px 4px; }
+      .card .maint, .card .meta, .card .addr { font-size: 11px; }
+      .card .title { -webkit-line-clamp: 2; font-size: 11px; min-height: 30px; }
+      .card .img .nav { opacity: 0.85; width: 24px; height: 24px; font-size: 14px; }
+      .card .img .src-badge { font-size: 9px; padding: 2px 5px; top: 6px; left: 6px; }
+      .card .img .idx { font-size: 9px; padding: 1px 5px; bottom: 5px; right: 6px; }
+      .card .del-btn { width: 26px; height: 26px; font-size: 14px; top: 6px; right: 6px; opacity: 0.9; }
+      .card .rec-btn { padding: 7px 8px; font-size: 11px; margin-top: 6px; border-radius: 8px; }
+      .card .tags { gap: 4px; margin-top: 5px; }
+      .card .tag { font-size: 9px; padding: 2px 6px; }
+
+      .map-wrap { height: calc(100vh - 180px); gap: 8px; padding-bottom: 12px; }
+      .map-panel { width: 240px; }
+      .map-panel .pi { padding: 8px; gap: 8px; }
+      .map-panel .pi .thumb { width: 54px; height: 54px; border-radius: 6px; }
+      .map-panel .pi .price { font-size: 12px; }
+      .map-panel .pi .meta, .map-panel .pi .addr { font-size: 10px; }
+    }
+    @media (max-width: 380px) {
+      .map-panel { display: none; }
+      #map { border-radius: 12px; }
+    }
+
+    /* Map view */
+    .map-wrap {
+      max-width: 1400px; margin: 0 auto; height: calc(100vh - 200px); min-height: 500px;
+      display: flex; gap: 16px;
+    }
+    #map {
+      flex: 1; height: 100%; min-width: 0;
+      border-radius: 16px; overflow: hidden; background: var(--card);
+    }
+    .map-panel {
+      width: 320px; flex-shrink: 0; background: var(--card);
+      border-radius: 16px; overflow: hidden;
+      display: flex; flex-direction: column;
+    }
+    .map-panel .ph {
+      padding: 16px 18px 12px; background: var(--card);
+    }
+    .map-panel .ph .num { color: var(--text); font-weight: 700; font-size: 15px; }
+    .map-panel .ph .sub { color: var(--muted); font-size: 11px; margin-top: 2px; }
+    .map-panel .pl { flex: 1; overflow-y: auto; padding: 0 10px 12px; }
+    .map-panel .pl::-webkit-scrollbar { width: 6px; }
+    .map-panel .pl::-webkit-scrollbar-thumb { background: #e5e5e8; border-radius: 3px; }
+    .map-panel .pi {
+      display: flex; gap: 10px; padding: 10px; background: #fff;
+      border-radius: 10px; cursor: pointer; margin-bottom: 6px;
+      transition: background 0.12s, transform 0.12s;
+    }
+    .map-panel .pi:hover { background: #f0f0f3; transform: translateY(-1px); }
+    .map-panel .pi.active { background: #eaf2ff; }
+    .map-panel .pi .thumb {
+      width: 64px; height: 64px; border-radius: 8px; overflow: hidden; background: #f3f4f6; flex-shrink: 0;
+    }
+    .map-panel .pi .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .map-panel .pi .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+    .map-panel .pi .price { font-size: 14px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
+    .map-panel .pi .price .src {
+      font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px; margin-left: 4px; vertical-align: 1px; color: #fff;
+    }
+    .map-panel .pi .price .src-dabang { background: #2563eb; } .map-panel .pi .price .src-zigbang { background: #f97316; }
+    .map-panel .pi .price .slash { color: var(--muted); font-weight: 500; }
+    .map-panel .pi .meta { font-size: 11px; color: #4b5563; }
+    .map-panel .pi .addr { font-size: 11px; color: var(--muted); }
+    .map-panel .empty { padding: 36px 16px; text-align: center; color: var(--muted); font-size: 12px; }
+    .leaflet-container { background: #f5f5f5; font-family: inherit; }
+    .leaflet-popup-content-wrapper {
+      border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.08);
+      padding: 0; overflow: hidden;
+    }
+    .leaflet-popup-content { margin: 0; min-width: 220px; }
+    .leaflet-popup-tip { box-shadow: 0 4px 8px rgba(0,0,0,.05); }
+    .mappop {
+      display: flex; flex-direction: column;
+    }
+    .mappop .img { width: 100%; aspect-ratio: 4 / 3; background: #f3f4f6; overflow: hidden; position: relative; }
+    .mappop .img img { width: 100%; height: 100%; object-fit: cover; }
+    .mappop .img .empty { display: flex; align-items: center; justify-content: center; height: 100%; color: #c0c0c5; font-size: 12px; }
+    .mappop .img .src {
+      position: absolute; top: 8px; left: 8px;
+      font-size: 10px; font-weight: 700;
+      padding: 3px 8px; border-radius: 4px;
+      background: rgba(255,255,255,0.95); color: var(--text);
+    }
+    .mappop .body { padding: 12px 14px 14px; background: var(--card); }
+    .mappop .price { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
+    .mappop .price .deposit { color: var(--muted); font-weight: 500; }
+    .mappop .price .slash { color: var(--muted); font-weight: 500; margin: 0 2px; }
+    .mappop .maint { color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .mappop .meta { color: #4b5563; font-size: 12px; margin-top: 4px; }
+    .mappop .addr { color: var(--muted); font-size: 12px; }
+    .mappop a.open {
+      display: block; text-align: center; margin-top: 10px; text-decoration: none;
+      color: var(--text); background: #fff; padding: 8px;
+      border-radius: 8px; font-size: 12px; font-weight: 600; transition: background 0.1s;
+    }
+    .mappop a.open:hover { background: #f3f4f6; }
+
+    .empty-state {
+      text-align: center; padding: 120px 24px; color: var(--muted);
+    }
+    .empty-state h2 { color: var(--text); font-size: 20px; font-weight: 600; margin: 0 0 6px; }
+    .empty-state p { font-size: 14px; margin: 0; }
+    .empty-state a { color: var(--accent); text-decoration: none; }
+  </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.min.js"></script>
+<script>
+  (function() {
+    try {
+      window.SB = window.supabase.createClient(
+        "https://ngpewoyrzhpvjmvlaqka.supabase.co",
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ncGV3b3lyemhwdmptdmxhcWthIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5NjAzNjMsImV4cCI6MjA5NzUzNjM2M30.fDNo04yBRP9LYLdlXizUMAI_2YEtSz9tHdX5vuy4dBk"
+      );
+    } catch (e) { console.warn("Supabase init failed:", e); }
+  })();
+</script>
+</head>
+<body>
+<style>
+  .pin-gate { position: fixed; inset: 0; z-index: 100000; background: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
+  .pin-card { background: #fafafa; border-radius: 18px; padding: 40px 44px 32px;
+    text-align: center; max-width: 360px; width: 90%; }
+  .pin-card h1 { font-size: 20px; font-weight: 700; margin: 0 0 6px; color: #111; letter-spacing: -0.01em; }
+  .pin-card p { font-size: 13px; color: #8e8e93; margin: 0 0 28px; }
+  .pin-inputs { display: flex; gap: 10px; justify-content: center; margin-bottom: 14px; }
+  .pin-inputs input {
+    width: 50px; height: 60px; text-align: center; font-size: 24px; font-weight: 600;
+    border: 0; background: #fff; border-radius: 12px; outline: 2px solid transparent;
+    color: #111; caret-color: #2563eb; font-family: inherit;
+    transition: outline-color 0.15s, transform 0.1s;
+  }
+  .pin-inputs input:focus { outline-color: #2563eb; }
+  .pin-inputs.shake { animation: pinShake 0.35s; }
+  @keyframes pinShake { 0%,100% { transform: translateX(0) } 25% { transform: translateX(-6px) } 75% { transform: translateX(6px) } }
+  .pin-card .err { color: #ef4444; font-size: 12px; min-height: 16px; }
+</style>
+<div class="pin-gate" id="pin-gate">
+  <div class="pin-card">
+    <h1>비밀번호</h1>
+    <p>4자리 코드를 입력하세요</p>
+    <div class="pin-inputs" id="pin-inputs">
+      <input maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+      <input maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+      <input maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+      <input maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+    </div>
+    <div class="err" id="pin-err"></div>
+  </div>
+</div>
+<script>
+(function() {
+  var KEY = "housing_pin_v1";
+  var PIN = "0111";
+  function unlock() {
+    var g = document.getElementById("pin-gate");
+    if (!g) return;
+    g.style.transition = "opacity 0.25s";
+    g.style.opacity = "0";
+    setTimeout(function() { g.remove(); }, 260);
+  }
+  if (localStorage.getItem(KEY) === "ok") {
+    // Already verified — remove gate as soon as it's parsed
+    document.addEventListener("DOMContentLoaded", unlock);
+    return;
+  }
+  document.addEventListener("DOMContentLoaded", function() {
+    var gate = document.getElementById("pin-gate");
+    if (!gate) return;
+    var inputs = gate.querySelectorAll(".pin-inputs input");
+    var err = document.getElementById("pin-err");
+    var box = document.getElementById("pin-inputs");
+    inputs[0].focus();
+    function check() {
+      var v = Array.prototype.map.call(inputs, function(i) { return i.value; }).join("");
+      if (v.length !== 4) return;
+      if (v === PIN) {
+        localStorage.setItem(KEY, "ok");
+        unlock();
+      } else {
+        err.textContent = "코드가 일치하지 않습니다";
+        box.classList.add("shake");
+        setTimeout(function() {
+          box.classList.remove("shake");
+          for (var i = 0; i < inputs.length; i++) inputs[i].value = "";
+          inputs[0].focus();
+        }, 360);
+      }
+    }
+    inputs.forEach(function(input, idx) {
+      input.addEventListener("input", function() {
+        input.value = (input.value || "").replace(/[^0-9]/g, "");
+        if (input.value && idx < 3) inputs[idx + 1].focus();
+        check();
+      });
+      input.addEventListener("keydown", function(e) {
+        if (e.key === "Backspace" && !input.value && idx > 0) inputs[idx - 1].focus();
+      });
+      input.addEventListener("paste", function(e) {
+        e.preventDefault();
+        var data = ((e.clipboardData || window.clipboardData).getData("text") || "").replace(/[^0-9]/g, "").slice(0, 4);
+        if (!data) return;
+        for (var i = 0; i < 4; i++) inputs[i].value = data[i] || "";
+        if (data.length === 4) check();
+        else inputs[data.length].focus();
+      });
+    });
+  });
+})();
+</script>
+  <header>
+    <h1>Shortlist</h1>
+    <span class="count" id="count"></span>
+    <nav>
+      <a href="/" style="display:none">Map</a>
+      <a href="/favorites.html" style="display:none">Favorites</a>
+      <a href="/kept.html" style="display:none">Keep</a>
+    </nav>
+  </header>
+  <div class="toolbar" style="display:none">
+    <div class="toggle">
+      <button id="tb-grid" class="active">Grid</button>
+      <button id="tb-map">Map</button>
+    </div>
+  </div>
+  <div id="chips" class="chips"></div>
+  <main>
+    <div id="root"></div>
+    <div id="map-wrap" class="map-wrap" style="display:none">
+      <div id="map"></div>
+      <aside class="map-panel" id="map-panel">
+        <div class="ph">
+          <div><span class="num" id="mp-count">0</span> 매물</div>
+          <div class="sub">현재 지도 영역 · 월세 낮은 순</div>
+        </div>
+        <div class="pl" id="mp-list"></div>
+      </aside>
+    </div>
+  </main>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+    function buildCard(r) {
+      const card = document.createElement("a");
+      card.className = "card";
+      card.href = `/detail.html?id=${encodeURIComponent(r.id)}`;
+      card.style.textDecoration = "none"; card.style.color = "inherit";
+
+      const imgs = Array.isArray(r.images) && r.images.length ? r.images.slice() : (r.image ? [r.image] : []);
+      const py = r.pyeong ? ` · ${r.pyeong}평` : "";
+      const maint = r.maintenance != null ? `<div class="maint">관리비 ${r.maintenance}만원</div>` : "";
+      const srcLabel = r.source === "dabang" ? "다방" : "직방";
+
+      const tags = [];
+      const isRec = window.RECS && window.RECS.has(r.id);
+      if (isRec) tags.push(`<span class="tag rec">💞 남자친구 추천</span>`);
+
+      card.innerHTML = `
+        <div class="img" data-images='${esc(JSON.stringify(imgs))}'>
+          ${imgs.length
+            ? `<img class="g-img" src="${esc(imgs[0])}" alt="">
+               ${imgs.length > 1 ? `<button class="nav prev" aria-label="prev">‹</button>
+                                     <button class="nav next" aria-label="next">›</button>
+                                     <span class="idx"><span class="g-cur">1</span>/<span class="g-max">${imgs.length}</span></span>` : ""}`
+            : `<div class="empty">no image</div>`}
+          <span class="src">${esc(srcLabel)}</span>
+          
+        </div>
+        <div class="body">
+          <div class="price"><span class="deposit">${r.deposit}</span><span class="slash">/</span>${r.rent}</div>
+          ${maint}
+          <div class="meta">${esc(r.type || "")}${py}</div>
+          <div class="addr">${esc(r.address || "")}</div>
+          <div class="title">${esc(r.title || "")}</div>
+          ${tags.length ? `<div class="tags">${tags.join("")}</div>` : ""}
+          ${window.SB ? `<button class="rec-btn${isRec ? " active" : ""}" type="button" data-rec-id="${esc(r.id)}">${isRec ? "남자친구가 추천한 곳" : "남자친구가 추천 하는 곳"}</button>` : ""}
+        </div>
+      `;
+      if (isRec) card.classList.add("recommended");
+
+      // Gallery wiring
+      const wrap = card.querySelector(".img[data-images]");
+      let images = imgs.slice();
+      let idx = 0;
+      const img = wrap.querySelector(".g-img");
+      const cur = wrap.querySelector(".g-cur");
+      const max = wrap.querySelector(".g-max");
+      if (img) {
+        const show = (i) => { idx = (i + images.length) % images.length; img.src = images[idx]; if (cur) cur.textContent = idx + 1; };
+        img.addEventListener("error", () => {
+          const failed = images[idx];
+          images = images.filter((u) => u !== failed);
+          if (max) max.textContent = images.length;
+          if (!images.length) { img.style.display = "none"; return; }
+          show(idx % images.length);
+        });
+        wrap.querySelector(".prev")?.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); show(idx - 1); });
+        wrap.querySelector(".next")?.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); show(idx + 1); });
+      }
+
+      card.querySelector(".rec-btn")?.addEventListener("click", async (e) => {
+        e.preventDefault(); e.stopPropagation();
+        const btn = e.currentTarget;
+        const wasActive = btn.classList.contains("active");
+        btn.disabled = true;
+        try {
+          await toggleRec(r.id, !wasActive);
+          if (!wasActive) { window.RECS.add(r.id); card.classList.add("recommended"); }
+          else { window.RECS.delete(r.id); card.classList.remove("recommended"); }
+          btn.classList.toggle("active", !wasActive);
+          btn.textContent = !wasActive ? "남자친구가 추천한 곳" : "남자친구가 추천 하는 곳";
+          // Refresh chip counts (in case the rec chip needs updating)
+          renderChips();
+        } catch (err) {
+          alert("저장 중 오류가 발생했습니다: " + err.message);
+        } finally { btn.disabled = false; }
+      });
+
+      card.querySelector(".del-btn")?.addEventListener("click", async (e) => {
+        e.preventDefault(); e.stopPropagation();
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        await fetch("/action", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ id: r.id, action: "remove", value: true })
+        });
+        card.style.transition = "opacity 0.25s, transform 0.25s";
+        card.classList.add("removing");
+        setTimeout(() => {
+          card.remove();
+          total--;
+          document.getElementById("count").textContent = `${total} listings`;
+          if (total === 0) {
+            document.getElementById("root").innerHTML = `
+              <div class="empty-state">
+                <h2>Nothing in your shortlist</h2>
+                <p>Head to the <a href="/">map</a> and start curating.</p>
+              </div>`;
+          }
+        }, 260);
+      });
+      return card;
+    }
+    let total = 0;
+
+    let ROWS = [];
+
+    const getGu = (r) => {
+      const m = (r.address || "").match(/(\S+구)/);
+      return m ? m[1] : null;
+    };
+    const SELECTED_GUS = new Set();
+    let SHOW_RECS_ONLY = false;
+    window.RECS = window.RECS || new Set();
+
+    async function loadRecs() {
+      if (!window.SB) return;
+      try {
+        const { data, error } = await window.SB.from("recommendations").select("listing_id");
+        if (error) throw error;
+        window.RECS = new Set((data || []).map((r) => r.listing_id));
+      } catch (e) {
+        console.warn("loadRecs failed:", e.message);
+      }
+    }
+    async function toggleRec(listingId, on) {
+      if (!window.SB) throw new Error("supabase not configured");
+      if (on) {
+        const { error } = await window.SB.from("recommendations").upsert({ listing_id: listingId });
+        if (error) throw error;
+      } else {
+        const { error } = await window.SB.from("recommendations").delete().eq("listing_id", listingId);
+        if (error) throw error;
+      }
+    }
+
+    function renderChips() {
+      const wrap = document.getElementById("chips");
+      const counts = new Map();
+      for (const r of ROWS) {
+        const gu = getGu(r); if (!gu) continue;
+        counts.set(gu, (counts.get(gu) || 0) + 1);
+      }
+      const entries = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+      wrap.innerHTML = "";
+      const allBtn = document.createElement("button");
+      allBtn.className = "chip" + (SELECTED_GUS.size === 0 && !SHOW_RECS_ONLY ? " active" : "");
+      allBtn.innerHTML = `전체 <span class="num">${ROWS.length}</span>`;
+      allBtn.addEventListener("click", () => {
+        SELECTED_GUS.clear(); SHOW_RECS_ONLY = false; renderChips(); renderGrid();
+      });
+      wrap.appendChild(allBtn);
+
+      // 남자친구 추천 chip — only show if Supabase is configured
+      if (window.SB && window.RECS && window.RECS.size > 0) {
+        const recBtn = document.createElement("button");
+        recBtn.className = "chip rec-chip" + (SHOW_RECS_ONLY ? " active" : "");
+        recBtn.innerHTML = `💞 남자친구 추천 <span class="num">${window.RECS.size}</span>`;
+        recBtn.addEventListener("click", () => {
+          SHOW_RECS_ONLY = !SHOW_RECS_ONLY;
+          renderChips(); renderGrid();
+        });
+        wrap.appendChild(recBtn);
+      }
+
+      for (const [gu, n] of entries) {
+        const btn = document.createElement("button");
+        btn.className = "chip" + (SELECTED_GUS.has(gu) ? " active" : "");
+        btn.innerHTML = `${esc(gu)} <span class="num">${n}</span>`;
+        btn.addEventListener("click", () => {
+          if (SELECTED_GUS.has(gu)) SELECTED_GUS.delete(gu); else SELECTED_GUS.add(gu);
+          renderChips(); renderGrid();
+        });
+        wrap.appendChild(btn);
+      }
+    }
+
+    function renderGrid() {
+      const root = document.getElementById("root");
+      root.innerHTML = "";
+      let filtered = SELECTED_GUS.size === 0
+        ? ROWS
+        : ROWS.filter((r) => SELECTED_GUS.has(getGu(r)));
+      if (SHOW_RECS_ONLY) filtered = filtered.filter((r) => window.RECS && window.RECS.has(r.id));
+      total = filtered.length;
+      document.getElementById("count").textContent = `${total} listings`;
+      if (!filtered.length) {
+        root.innerHTML = `
+          <div class="empty-state">
+            <h2>No listings in selected areas</h2>
+            <p>Tap <b>전체</b> or pick a different 구 above.</p>
+          </div>`;
+        return;
+      }
+      const grid = document.createElement("div");
+      grid.className = "grid";
+      for (const r of filtered) grid.appendChild(buildCard(r));
+      root.appendChild(grid);
+    }
+
+    Promise.all([
+      fetch("/data/listings.json").then((r) => r.json()),
+      loadRecs()
+    ]).then(([rows]) => {
+      rows.sort((a, b) => (a.rent - b.rent) || (a.deposit - b.deposit));
+      ROWS = rows;
+      if (!rows.length) {
+        document.getElementById("count").textContent = "0 listings";
+        document.getElementById("root").innerHTML = `
+          <div class="empty-state">
+            <h2>Nothing in your shortlist</h2>
+            <p>Head to the <a href="/">map</a> and start curating.</p>
+          </div>`;
+        return;
+      }
+      renderChips();
+      renderGrid();
+    });
+
+    // ===== Map view =====
+    let smap = null;
+    const colors = { dabang: "#2563eb", zigbang: "#f97316" };
+
+    function popupHtml(r) {
+      const thumb = (r.images && r.images[0]) || r.image;
+      const py = r.pyeong ? ` · ${r.pyeong}평` : "";
+      const maint = r.maintenance != null ? `<div class="maint">관리비 ${r.maintenance}만원</div>` : "";
+      const srcLabel = r.source === "dabang" ? "다방" : "직방";
+      return `<div class="mappop">
+        <div class="img">
+          ${thumb ? `<img src="${esc(thumb)}" alt="" onerror="this.style.display='none';this.parentElement.innerHTML='<div class=\\'empty\\'>no image</div>'">` : `<div class="empty">no image</div>`}
+          <span class="src">${esc(srcLabel)}</span>
+        </div>
+        <div class="body">
+          <div class="price"><span class="deposit">${r.deposit}</span><span class="slash">/</span>${r.rent}</div>
+          ${maint}
+          <div class="meta">${esc(r.type || "")}${py}</div>
+          <div class="addr">${esc(r.address || "")}</div>
+          <a class="open" href="/detail.html?id=${encodeURIComponent(r.id)}">상세 보기 →</a>
+        </div>
+      </div>`;
+    }
+
+    const MAP_MARKERS = new Map(); // id -> { row, marker }
+
+    function initMap() {
+      if (smap) return;
+      smap = L.map("map", { preferCanvas: true, zoomControl: true, attributionControl: false });
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+        subdomains: "abcd", maxZoom: 19
+      }).addTo(smap);
+      L.control.attribution({ position: "bottomright", prefix: false })
+        .addAttribution('&copy; <a href="https://openstreetmap.org/copyright">OSM</a> · <a href="https://carto.com/attributions">CARTO</a>')
+        .addTo(smap);
+
+      const points = [];
+      for (const r of ROWS) {
+        if (r.lat == null || r.lng == null) continue;
+        points.push([r.lat, r.lng]);
+        const m = L.circleMarker([r.lat, r.lng], {
+          radius: 7, fillColor: colors[r.source] || "#9ca3af",
+          color: "#fff", weight: 2, fillOpacity: 0.92
+        });
+        m.bindPopup(popupHtml(r), { maxWidth: 260, closeButton: true });
+        m.addTo(smap);
+        MAP_MARKERS.set(r.id, { row: r, marker: m });
+      }
+      if (points.length) smap.fitBounds(points, { padding: [40, 40], maxZoom: 15 });
+      else smap.setView([37.5665, 126.9780], 12);
+
+      smap.on("moveend", updateMapPanel);
+      smap.on("zoomend", updateMapPanel);
+      updateMapPanel();
+    }
+
+    function updateMapPanel() {
+      if (!smap) return;
+      const bounds = smap.getBounds();
+      const rows = [];
+      for (const { row: r } of MAP_MARKERS.values()) {
+        if (r.lat == null || r.lng == null) continue;
+        if (bounds.contains([r.lat, r.lng])) rows.push(r);
+      }
+      rows.sort((a, b) => (a.rent - b.rent) || (a.deposit - b.deposit));
+      document.getElementById("mp-count").textContent = rows.length;
+      const list = document.getElementById("mp-list");
+      list.innerHTML = "";
+      if (!rows.length) {
+        list.innerHTML = '<div class="empty">지도를 움직이면 매물이 표시됩니다</div>';
+        return;
+      }
+      const frag = document.createDocumentFragment();
+      for (const r of rows) frag.appendChild(buildPanelItem(r));
+      list.appendChild(frag);
+    }
+
+    function buildPanelItem(r) {
+      const el = document.createElement("div");
+      el.className = "pi";
+      el.dataset.id = r.id;
+      const thumb = (r.images && r.images[0]) || r.image;
+      const py = r.pyeong ? ` · ${r.pyeong}평` : "";
+      const srcLabel = r.source === "dabang" ? "다방" : "직방";
+      el.innerHTML = `
+        <div class="thumb">${thumb ? `<img src="${esc(thumb)}" alt="" onerror="this.parentElement.style.background='#f3f4f6';this.remove()">` : ""}</div>
+        <div class="info">
+          <div class="price"><span style="color:var(--muted);font-weight:500">${r.deposit}</span><span class="slash">/</span>${r.rent}<span class="src src-${r.source}">${esc(srcLabel)}</span></div>
+          <div class="meta">${esc(r.type || "")}${py}</div>
+          <div class="addr">${esc(r.address || "")}</div>
+        </div>`;
+      el.addEventListener("click", () => {
+        const entry = MAP_MARKERS.get(r.id);
+        if (!entry) return;
+        document.querySelectorAll(".map-panel .pi.active").forEach((e) => e.classList.remove("active"));
+        el.classList.add("active");
+        smap.setView([r.lat, r.lng], Math.max(smap.getZoom(), 16), { animate: true });
+        setTimeout(() => entry.marker.openPopup(), 280);
+      });
+      return el;
+    }
+
+    const tbGrid = document.getElementById("tb-grid");
+    const tbMap  = document.getElementById("tb-map");
+    const rootEl = document.getElementById("root");
+    const wrapEl = document.getElementById("map-wrap");
+
+    const chipsEl = document.getElementById("chips");
+    tbGrid.addEventListener("click", () => {
+      tbGrid.classList.add("active"); tbMap.classList.remove("active");
+      rootEl.style.display = ""; wrapEl.style.display = "none";
+      chipsEl.style.display = "";
+    });
+    tbMap.addEventListener("click", () => {
+      tbMap.classList.add("active"); tbGrid.classList.remove("active");
+      rootEl.style.display = "none"; wrapEl.style.display = "flex";
+      chipsEl.style.display = "none";
+      initMap();
+      setTimeout(() => { smap?.invalidateSize(); updateMapPanel(); }, 0);
+    });
+  </script>
+</body>
+</html>

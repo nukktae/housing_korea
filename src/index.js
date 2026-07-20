@@ -428,6 +428,7 @@ function isMatching(listing) {
   if (listing.source === "zigbang" && listing.address && !listing.address.includes("서울")) return false;
   if (!f.roomTypes.some((type) => String(listing.type).includes(type))) return false;
   if (listing.deposit > f.depositMaxManwon) return false;
+  if (typeof f.depositMinManwon === "number" && listing.deposit < f.depositMinManwon) return false;
   if (listing.rent > f.monthlyRentMaxManwon) return false;
   if (listing.pyeong !== null && listing.pyeong < f.minimumPyeong) return false;
   if (f.excludedFloors.some((word) => listing.floorText.includes(word) || listing.text.includes(word))) return false;

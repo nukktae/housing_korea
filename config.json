@@ -28,6 +28,7 @@
   },
   "filters": {
     "depositMaxManwon": 500,
+    "depositMinManwon": 100,
     "monthlyRentMaxManwon": 68,
     "minimumPyeong": 6,
     "maintenanceFeeSeparate": true,
