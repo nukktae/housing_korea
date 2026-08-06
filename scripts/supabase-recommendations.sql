@@ -1,9 +1,9 @@
 -- Run this once in Supabase Dashboard → SQL Editor → New Query → Run.
--- Creates a public-readable, public-writable table for boyfriend's recommendations.
+-- Creates a public-readable, public-writable table for friend recommendations.
 
 create table if not exists public.recommendations (
   listing_id text primary key,
-  recommender text not null default 'boyfriend',
+  recommender text not null default 'friend',
   recommended_at timestamptz not null default now()
 );
 

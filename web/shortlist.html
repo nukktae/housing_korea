@@ -319,7 +319,7 @@
 
       const tags = [];
       const isRec = window.RECS && window.RECS.has(r.id);
-      if (isRec) tags.push(`<span class="tag rec">💞 남자친구 추천</span>`);
+      if (isRec) tags.push(`<span class="tag rec">💞 친구 추천</span>`);
 
       card.innerHTML = `
         <div class="img" data-images='${esc(JSON.stringify(imgs))}'>
@@ -339,7 +339,7 @@
           <div class="addr">${esc(r.address || "")}</div>
           <div class="title">${esc(r.title || "")}</div>
           ${tags.length ? `<div class="tags">${tags.join("")}</div>` : ""}
-          ${window.SB ? `<button class="rec-btn${isRec ? " active" : ""}" type="button" data-rec-id="${esc(r.id)}">${isRec ? "남자친구가 추천한 곳" : "남자친구가 추천 하는 곳"}</button>` : ""}
+          ${window.SB ? `<button class="rec-btn${isRec ? " active" : ""}" type="button" data-rec-id="${esc(r.id)}">${isRec ? "친구가 추천한 곳" : "친구가 추천 하는 곳"}</button>` : ""}
         </div>
       `;
       if (isRec) card.classList.add("recommended");
@@ -374,7 +374,7 @@
           if (!wasActive) { window.RECS.add(r.id); card.classList.add("recommended"); }
           else { window.RECS.delete(r.id); card.classList.remove("recommended"); }
           btn.classList.toggle("active", !wasActive);
-          btn.textContent = !wasActive ? "남자친구가 추천한 곳" : "남자친구가 추천 하는 곳";
+          btn.textContent = !wasActive ? "친구가 추천한 곳" : "친구가 추천 하는 곳";
           // Refresh chip counts (in case the rec chip needs updating)
           renderChips();
         } catch (err) {
@@ -458,11 +458,11 @@
       });
       wrap.appendChild(allBtn);
 
-      // 남자친구 추천 chip — only show if Supabase is configured
+      // 친구 추천 chip — only show if Supabase is configured
       if (window.SB && window.RECS && window.RECS.size > 0) {
         const recBtn = document.createElement("button");
         recBtn.className = "chip rec-chip" + (SHOW_RECS_ONLY ? " active" : "");
-        recBtn.innerHTML = `💞 남자친구 추천 <span class="num">${window.RECS.size}</span>`;
+        recBtn.innerHTML = `💞 친구 추천 <span class="num">${window.RECS.size}</span>`;
         recBtn.addEventListener("click", () => {
           SHOW_RECS_ONLY = !SHOW_RECS_ONLY;
           renderChips(); renderGrid();
